@@ -27,13 +27,15 @@ const wss = new WebSocketServer({
 var playground = new Playground();
 const options: PlaygroundSetupOptions = {
     formatid: 'gen9ubers',
-    players: [
-        { name: 'player1' },
-        { name: 'player2' },
-    ]
+    players: []
 }
 
+const sessions = new Map<string, WebSocket>();
 
+function battlewithbot() {
+    options.players.push({ name: 'player2', bot: true })
+    playground.setup(options)
+}
 
 wss.on('connection', function connection(ws) {
     ws.on('error', console.error);
@@ -44,10 +46,29 @@ wss.on('connection', function connection(ws) {
             ws.send(chunk);
         }
     })();
-    if (wss.clients.size > 1) playground.setup(options)
+
     ws.on('message', function message(data) {
-        console.log('received: %s', data);
+        const res = receiveRequest(data.toString());
+        if (typeof res === 'string') {
+            sessions.set(res, ws);
+            ws.send(`|sideid|${res}|`);
+        }
     });
 
 });
 
+function receiveRequest(request: string) {
+    console.log(request);
+    const body = request.split('|').filter(str => str.length > 0);
+    const type = body[0];
+    const data = body[1];
+    if (type === 'player') {
+        options.players.push(JSON.parse(data));
+        const sideId = `p${options.players.length}`;
+        battlewithbot();
+        return sideId;
+    }
+    else if (type === 'action') {
+        playground.run(data);
+    }
+}

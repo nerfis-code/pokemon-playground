@@ -8,6 +8,11 @@ nuevas funciones en combate
     -revivir un pokemon
     -usar objectos en combate
 
+websocket
+    -el streams a todos los clientes 👍
+    -poder recibir equipos del cliente 👍
+    -poder recibir los comandos del cliente 👍
+    -añadir autentificación de clientes como jugadores o espectadores
 
 /*
 action.pokemon.side.pokemonLeft++;

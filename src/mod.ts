@@ -25,6 +25,30 @@ export type PersistentPkmnTeamData = {
     [k: PkmnFullname]: PersistentPkmnData
 }
 // moveSlots : ID
+
+export interface PokemonSetExtended extends PokemonSet {
+
+    persistentData?: PersistentPkmnData;
+    experience?: number;
+    /*
+    name: string;
+    species: T;
+    item: T;
+    ability: T;
+    moves: T[];
+    nature: T;
+    gender: string;
+    evs: StatsTable;
+    ivs: StatsTable;
+    level: number;
+    shiny?: boolean;
+    happiness?: number;
+    pokeball?: T;
+    hpType?: string;
+    dynamaxLevel?: number;
+    gigantamax?: boolean;
+    teraType?: string; */
+}
 export class BattleStreamsMod extends BattleStreams.BattleStream {
 
     private sendout?: (type: string, data: string | string[]) => void;
@@ -85,8 +109,12 @@ export class BattleStreamsMod extends BattleStreams.BattleStream {
                         for (let [moveid, movedata] of Object.entries(mod.moveSlots)) {
                             const move = pokemon.getMoveData(moveid);
                             if (!move) throw new Error(`No move with that id ${moveid} mod`);
+                            this.battle.add(`& mod|${PkmnFullname}|pp ${move.pp} -> ${movedata.pp}`);
                             move.pp = movedata.pp;
-                            if (movedata.maxpp) move.maxpp = movedata.maxpp;
+                            if (movedata.maxpp) {
+                                this.battle.add(`& mod|${PkmnFullname}|maxPP ${move.maxpp} -> ${movedata.maxpp}`);
+                                move.maxpp = movedata.maxpp;
+                            }
                         }
                     }
                 }
@@ -99,29 +127,4 @@ export class BattleStreamsMod extends BattleStreams.BattleStream {
                 break;
         }
     }
-}
-
-
-export interface PokemonSetExtended extends PokemonSet {
-
-    persistentData?: PersistentPkmnData;
-    experience?: number;
-    /*
-    name: string;
-    species: T;
-    item: T;
-    ability: T;
-    moves: T[];
-    nature: T;
-    gender: string;
-    evs: StatsTable;
-    ivs: StatsTable;
-    level: number;
-    shiny?: boolean;
-    happiness?: number;
-    pokeball?: T;
-    hpType?: string;
-    dynamaxLevel?: number;
-    gigantamax?: boolean;
-    teraType?: string; */
 }

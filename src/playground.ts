@@ -7,6 +7,13 @@ import { TeamGenerators } from "@pkmn/randoms";
 interface PlayerOptionsExtended extends PlayerOptions {
     team?: PokemonSetExtended[]
     bot?: boolean
+    /*
+    name?: string;
+    avatar?: string;
+    rating?: number;
+    team?: PokemonSet[] | string | null;
+    seed?: PRNGSeed;
+     */
 }
 export type ConnectionType = 'singleplayer' | 'multiplayer'
 
@@ -29,7 +36,7 @@ export default class Playground {
 
     }
     setup(options: PlaygroundSetupOptions) {
-        const spec = { formatid: options.formatid,/* strictChoices: false, debug: true*/ };
+        const spec = { formatid: options.formatid, strictChoices: false, debug: true };
         Teams.setGeneratorFactory(TeamGenerators);
 
         void (async () => {
@@ -41,7 +48,11 @@ export default class Playground {
         this.streams.omniscient.write(`>start ${JSON.stringify(spec)}`)
         options.players.map((player, index) => {
             if (!player.team) player.team = Teams.generate('gen9randombattle')
-            console.log(player.team || 'no team')
+            if (player.bot) {
+                const bot = new RandomPlayerAI(this.getStreams(index + 1))
+                bot.start()
+            }
+            console.log(Teams.pack(player.team))
             this.streams.omniscient.write(`>player p${index + 1} ${JSON.stringify({ ...player, team: Teams.pack(player.team) })}`)
         })
         // set real state pokemon
@@ -54,47 +65,17 @@ export default class Playground {
             this.streams.omniscient.write(`>mod ${JSON.stringify(modState)}`)
         })
     }
+    run(data: string) {
+        this.streams.omniscient.write(`>${data}`)
+    }
     getStreams(index: number) {
-        if (index == 0) {
-            return this.streams.omniscient
-        } else if (index == 1) {
-            return this.streams.p1
-        } else if (index == 2) {
-            return this.streams.p2
-        } else if (index == 3) {
-            return this.streams.p3
-        }
-        else {
-            return this.streams.p4
-        }
+        return [
+            this.streams.omniscient,
+            this.streams.p1,
+            this.streams.p2,
+            this.streams.p3,
+            this.streams.p4,
+        ][index]
     }
 }
 
-var playground = new Playground();
-const options: PlaygroundSetupOptions = {
-    formatid: 'gen9ubers',
-    players: [
-        {
-            name: 'nerfis',
-            team: [{
-                name: 'Garbodor',
-                species: 'Garbodor',
-                gender: '',
-                shiny: false,
-                level: 88,
-                moves: ['toxicspikes', 'stompingtantrum', 'spikes', 'gunkshot'],
-                ability: 'Aftermath',
-                evs: { hp: 85, atk: 85, def: 85, spa: 85, spd: 85, spe: 85 },
-                ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 },
-                item: 'Black Sludge',
-                nature: 'Timid',
-                persistentData: {
-                    status: 'brn'
-                }
-            }]
-        },
-        {
-            name: 'bot'
-        }
-    ]
-}
