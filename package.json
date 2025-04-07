@@ -1,0 +1,29 @@
+{
+  "name": "pokemon-playground",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "npx tsc && node bin/playground.js",
+    "server": "npx tsc && node bin/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/ws": "^8.18.1",
+    "tslib": "^2.8.1",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@pkmn/randoms": "^0.9.33",
+    "@pkmn/sim": "^0.9.33",
+    "@pkmn/types": "^4.0.0",
+    "ws": "^8.18.1"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.9"
+  }
+}
