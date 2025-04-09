@@ -1,10 +1,10 @@
-import { BattleStreams, PlayerOptions, RandomPlayerAI, Teams } from "@pkmn/sim";
+import { BattleStreams, Dex, PlayerOptions, RandomPlayerAI, SideID, Teams } from "@pkmn/sim";
 import { BattleStreamsMod, PkmnFullname, PokemonSetExtended, PersistentPkmnTeamData } from "./mod";
 import { TeamGenerators } from "@pkmn/randoms";
 
 
 
-interface PlayerOptionsExtended extends PlayerOptions {
+export interface PlayerOptionsExtended extends PlayerOptions {
     team?: PokemonSetExtended[]
     bot?: boolean
     /*
@@ -15,15 +15,16 @@ interface PlayerOptionsExtended extends PlayerOptions {
     seed?: PRNGSeed;
      */
 }
-export type ConnectionType = 'singleplayer' | 'multiplayer'
+type Generation = "gen9"
+type Formats = 'ubers' | 'randombattle' | 'randomdoublesbattle'
 
-export type PlaygroundSetupOptions = {
-    formatid: 'gen9ubers'
+export type ConnectionType = 'singleplayer' | 'multiplayer'
+export type BattleType = 'wild' | 'trainer' | 'doubleTrainer' | 'Legendary'
+export interface PlaygroundSetupOptions {
     players: PlayerOptionsExtended[]  /** |player|PLAYER|USERNAME|AVATAR|RATING  */
-    connection?: ConnectionType
-    /*TODO:  
-        WILD & TRAINER
-    */
+    connection: ConnectionType
+    battleType: BattleType
+    formatid: `${Generation}${Formats}`
 }
 
 export default class Playground {
@@ -65,8 +66,8 @@ export default class Playground {
             this.streams.omniscient.write(`>mod ${JSON.stringify(modState)}`)
         })
     }
-    run(data: string) {
-        this.streams.omniscient.write(`>${data}`)
+    execute(sideId: SideID, command: string) {
+        this.streams.omniscient.write(`>${sideId} ${command}`)
     }
     getStreams(index: number) {
         return [
@@ -77,5 +78,15 @@ export default class Playground {
             this.streams.p4,
         ][index]
     }
+    getStreamsBySide(sideId: SideID) {
+        {
+            const index = ['p1', 'p2', 'p3', 'p4'].indexOf(sideId)
+            return [
+                this.streams.p1,
+                this.streams.p2,
+                this.streams.p3,
+                this.streams.p4,
+            ][index]
+        }
+    }
 }
-

@@ -1,5 +1,8 @@
 import WebSocket, { WebSocketServer } from 'ws';
-import Playground, { PlaygroundSetupOptions } from './playground';
+import Playground, { PlayerOptionsExtended, PlaygroundSetupOptions } from './playground';
+import { randomUUID } from 'crypto';
+import { RandomPlayerAI, SideID } from '@pkmn/sim';
+import { ObjectReadWriteStream } from '@pkmn/sim/build/cjs/lib/streams';
 
 const wss = new WebSocketServer({
     port: 8080,
@@ -24,51 +27,160 @@ const wss = new WebSocketServer({
     }
 });
 
-var playground = new Playground();
-const options: PlaygroundSetupOptions = {
-    formatid: 'gen9ubers',
-    players: []
-}
-
-const sessions = new Map<string, WebSocket>();
-
-function battlewithbot() {
-    options.players.push({ name: 'player2', bot: true })
-    playground.setup(options)
-}
 
 wss.on('connection', function connection(ws) {
     ws.on('error', console.error);
 
-
-    void (async () => {
-        for await (const chunk of playground.getStreams(wss.clients.size)) {
-            ws.send(chunk);
-        }
-    })();
-
-    ws.on('message', function message(data) {
-        const res = receiveRequest(data.toString());
-        if (typeof res === 'string') {
-            sessions.set(res, ws);
-            ws.send(`|sideid|${res}|`);
-        }
-    });
-
+    ws.on('message', (data) => receiveRequest(data.toString(), ws));
 });
 
-function receiveRequest(request: string) {
+function receiveRequest(request: string, client: WebSocket) {
     console.log(request);
     const body = request.split('|').filter(str => str.length > 0);
     const type = body[0];
     const data = body[1];
-    if (type === 'player') {
-        options.players.push(JSON.parse(data));
-        const sideId = `p${options.players.length}`;
-        battlewithbot();
-        return sideId;
+
+    switch (type) {
+        case 'room':
+            const roomOptions: RoomOptions = JSON.parse(data);
+            Room.create(roomOptions.type);
+            break;
+        case 'player':
+            const playerOptions: PlayerOptionsExtended = JSON.parse(data);
+            Room.getInstance().addPlayer(client, playerOptions);
+            break;
+        case 'action':
+            const action = data;
+            Room.getInstance().choose(client, action);
+            break;
+        default:
+            client.send('|error|Invalid request');
+            break;
     }
-    else if (type === 'action') {
-        playground.run(data);
+}
+type RoomOptions = {
+    type: RoomTypes
+}
+
+const playerIA = {
+    random: (streams: ObjectReadWriteStream<string>) => new RandomPlayerAI(streams)
+}
+type RoomStatus = 'waitingForPlayers' | 'playing' | 'ended' | 'waitingForMoves' /* TODO: add */
+type RoomTypes = 'PVP' | 'PVE'
+// room
+class Room {
+    private _id: string
+    private static _instance?: Room
+    private _numberOfPlayersNeeded: number = 2
+    type: RoomTypes
+    clients: (WebSocket | RandomPlayerAI)[] = []
+    roles: Map<(WebSocket | RandomPlayerAI), SideID>
+    playground: Playground
+    playgroundSetupOptions: PlaygroundSetupOptions
+    began: boolean = false
+
+    pushClients: (client: WebSocket | ((streams: ObjectReadWriteStream<string>) => RandomPlayerAI)) => boolean
+
+    private constructor(type: RoomTypes) {
+        this._id = randomUUID()
+        this.type = type
+        this.roles = new Map()
+        this.clients = []
+        this.playground = new Playground()
+        this.playgroundSetupOptions = {
+            formatid: 'gen9ubers',
+            players: [],
+            connection: this.type === 'PVE' ? 'singleplayer' : 'multiplayer',
+            battleType: 'wild'
+        }
+        this.pushClients = (client: WebSocket | ((streams: ObjectReadWriteStream<string>) => RandomPlayerAI)) => {
+            if (client instanceof WebSocket) {
+                if (this.type === 'PVE' && this.clients.length > 0) {
+                    client.send('|error|Room is private')
+                    return false
+                }
+                if (this.began) {
+                    client.send('|error|Room has already began')
+                    return false
+                }
+                if (this.clients.length > this._numberOfPlayersNeeded) {
+                    client.send('|error|Room is full')
+                    return false
+                }
+                if (this.roles.has(client)) {
+                    client.send('|error|You are already in this room')
+                    return false
+                }
+            }
+            const sideId = `p${this.clients.length + 1}`
+            const stream = this.playground.getStreamsBySide(sideId as SideID)
+            if (client instanceof WebSocket) {
+                this.clients.push(client)
+                this.roles.set(client, sideId as SideID)
+                void (async () => {
+                    for await (const chunk of stream) {
+                        client.send(chunk);
+                    }
+                })();
+            } else {
+                const ai = client(stream)
+                this.clients.push(ai)
+                this.roles.set(ai, sideId as SideID)
+                ai.start()
+            }
+            return true
+        }
+
+    }
+    addPlayer(client: WebSocket | ((streams: ObjectReadWriteStream<string>) => RandomPlayerAI), playerOptions: PlayerOptionsExtended) {
+        const error = !this.pushClients(client)
+        if (error) return
+        this.playgroundSetupOptions.players.push(playerOptions)
+        if (!playerOptions.bot) this.startudHandler()
+    }
+    addBot(playerOptions: PlayerOptionsExtended) {
+        this.addPlayer(playerIA.random, playerOptions)
+    }
+    startudHandler() {
+        if (this.type === 'PVE') this.addBot({
+            'name': 'Bot',
+            'bot': true
+        })
+        if (this.roles.size !== this.clients.length) {
+            return
+        }
+        if (this.clients.length !== this._numberOfPlayersNeeded) {
+            return
+        }
+        this.playground.setup(this.playgroundSetupOptions)
+        this.start()
+    }
+    start() {
+        if (this.began) {
+            throw new Error('Room has already began')
+        }
+        this.began = true
+    }
+    choose(client: WebSocket, action: string) {
+        const sideId = this.roles.get(client)
+        if (!sideId) {
+            client.send('|error|You are not in this room')
+            return
+        }
+        this.playground.execute(sideId, action)
+
+    }
+    static create(type: RoomTypes) {
+        if (Room._instance) {
+            throw new Error('Room is already initialized')
+        }
+        this._instance = new Room(type)
+        return this._instance
+    }
+    static getInstance() {
+        if (!Room._instance) {
+            throw new Error('Room is not initialized')
+        }
+        return Room._instance
     }
 }

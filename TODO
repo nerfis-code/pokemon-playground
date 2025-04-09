@@ -9,6 +9,7 @@ nuevas funciones en combate
     -usar objectos en combate
 
 websocket
+    -poder recuperar la session
     -el streams a todos los clientes 👍
     -poder recibir equipos del cliente 👍
     -poder recibir los comandos del cliente 👍
